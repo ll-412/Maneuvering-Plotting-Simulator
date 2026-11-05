@@ -116,6 +116,7 @@
   .row{display:flex; align-items:center; gap:8px; margin-bottom:7px;}
   .row:last-child{margin-bottom:0;}
   .row label{font-size:13.5px; color:#334155; flex:0 0 auto;}
+  .row .un{font-size:12px; color:#7b8794; flex:0 0 auto;}
   .row input[type=number], .row input[type=text]{
     flex:1 1 auto; min-width:0; height:44px; border-radius:10px; border:1.5px solid var(--line);
     background:#fff; font-family:inherit; font-size:16px; padding:0 9px; color:var(--txt);
@@ -603,6 +604,40 @@
       </div>
 
       <div class="card">
+        <h3>✏️ 按参数绘制（比手画准）</h3>
+        <div class="grid4" style="grid-template-columns:repeat(4,1fr);">
+          <button class="tb small ptype" data-ptype="point">点</button>
+          <button class="tb small ptype on" data-ptype="line">线段</button>
+          <button class="tb small ptype" data-ptype="ray">射线</button>
+          <button class="tb small ptype" data-ptype="circle">圆</button>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <label>起点</label>
+          <input type="number" id="pdR" step="0.1" placeholder="0" value="0">
+          <span class="un">海里</span>
+          <input type="number" id="pdB" step="0.1" placeholder="0" value="0">
+          <span class="un">°</span>
+        </div>
+        <div class="row" id="pdDirRow">
+          <label id="pdDirLabel">方向</label>
+          <input type="number" id="pdA" step="0.1" placeholder="45">
+          <span class="un">°</span>
+          <label id="pdLenLabel">长度</label>
+          <input type="number" id="pdL" step="0.1" placeholder="5">
+          <span class="un">海里</span>
+        </div>
+        <button class="tb go" id="pdDraw" style="width:100%;">画到图上</button>
+        <div class="grid2" style="margin-top:8px;">
+          <button class="tb small" id="pdAgain">继续画</button>
+          <button class="tb small dan" id="pdDel">删除这条</button>
+        </div>
+        <div class="hint" id="pdHint">
+          起点＝「距本船多少海里 ＋ 方位多少度」，本船在图心，填 0 / 0 就是图心。<br>
+          线段要方向和长度；射线只给方向，自动止于图纸边缘；圆只给半径。
+        </div>
+      </div>
+
+      <div class="card">
         <h3>比例</h3>
         <div class="grid4">
           <button class="tb small scalebtn" data-scale="1:1">1:1</button>
@@ -641,18 +676,6 @@
           <button class="tb small" data-nudge="len.5">长 +0.5</button>
         </div>
         <div class="hint" style="margin-top:7px;">均以线段起点为轴心。长度单位＝「比例」里的单位。</div>
-      </div>
-
-      <div class="card">
-        <h3>数值落点（比手画更准）</h3>
-        <div class="row">
-          <label>距离</label><input type="number" id="nR" step="0.1" placeholder="8">
-          <label>方位</label><input type="number" id="nB" step="0.1" placeholder="045">
-        </div>
-        <div class="grid2">
-          <button class="tb small go" id="btnPlot">放到图上</button>
-          <button class="tb small" id="btnPlotLine">放点并连线</button>
-        </div>
       </div>
 
       <div class="card">
@@ -1793,39 +1816,6 @@ function polarPoint(R, B){
   return { x: BOARD_CX + R*S.pxPerUnit*Math.sin(a),
            y: BOARD_CY - R*S.pxPerUnit*Math.cos(a) };
 }
-let lastPlot = null;
-$('btnPlot').addEventListener('click', ()=>{
-  const R = parseFloat($('nR').value), B = parseFloat($('nB').value);
-  if(isNaN(R) || isNaN(B)){ toast('请填距离和方位'); return; }
-  const p = polarPoint(R,B);
-  pushUndo();
-  points.push({ x:p.x, y:p.y, color:S.pointColor, size:S.pointSize });
-  labels.push({ x:p.x+16, y:p.y-16, text:S.letter, color:S.labelColor, size:S.labelSize });
-  if(S.autoLetter && /^[A-Z]$/.test(S.letter)){
-    const c = S.letter.charCodeAt(0);
-    S.letter = String.fromCharCode(c>=90?65:c+1); $('letterInput').value = S.letter;
-  }
-  lastPlot = p;
-  redraw(); save(); toast('已放置 '+R+' / '+B+'°');
-});
-$('btnPlotLine').addEventListener('click', ()=>{
-  const R = parseFloat($('nR').value), B = parseFloat($('nB').value);
-  if(isNaN(R) || isNaN(B)){ toast('请填距离和方位'); return; }
-  const p = polarPoint(R,B);
-  pushUndo();
-  points.push({ x:p.x, y:p.y, color:S.pointColor, size:S.pointSize });
-  labels.push({ x:p.x+16, y:p.y-16, text:S.letter, color:S.labelColor, size:S.labelSize });
-  if(lastPlot){
-    lines.push({ x1:lastPlot.x, y1:lastPlot.y, x2:p.x, y2:p.y,
-                 color:S.color, width:S.width, arrow:'end', style:'solid' });
-  }
-  if(S.autoLetter && /^[A-Z]$/.test(S.letter)){
-    const c = S.letter.charCodeAt(0);
-    S.letter = String.fromCharCode(c>=90?65:c+1); $('letterInput').value = S.letter;
-  }
-  lastPlot = p;
-  redraw(); save();
-});
 $('btnVec').addEventListener('click', ()=>{
   const co = parseFloat($('nCo').value), so = parseFloat($('nSo').value);
   if(isNaN(co) || isNaN(so)){ toast('请填航向和航速'); return; }
@@ -2080,7 +2070,7 @@ window.__JT = {
   get circles(){ return circles; },
   get measures(){ return measures; },
   cam, S, setMode, fitView, compute, redraw,
-  plot(R,B){ $('nR').value=R; $('nB').value=B; $('btnPlot').click(); },
+  plot(R,B){ $('pdR').value=R; $('pdB').value=B; pdSetType('point'); $('pdDraw').click(); },
   addLine(x1,y1,x2,y2){ pushUndo(); lines.push({x1,y1,x2,y2,color:S.color,width:S.width,arrow:S.arrow,style:S.style}); redraw(); }
 };
 
@@ -2165,6 +2155,135 @@ $('ldDelete').addEventListener('click', ()=>{
   lines.splice(sel.id,1);
   sel = null; syncUI(); redraw(); save();
 });
+
+
+/* ============================================================
+ *  按参数绘制：点 / 线段 / 射线 / 圆
+ * ============================================================ */
+let ptype = 'line';
+let lastMade = null;          // {type:'line'|'circle'|'point', id}
+
+const PTYPE_HINT = {
+  point:'只用到「起点」：在那个位置放一个带字母的点。',
+  line:'起点 ＋ 方向（角度）＋ 长度（海里）＝一条线段。',
+  ray:'起点 ＋ 方向（角度）＝一条射线，自动画到图纸边缘为止。',
+  circle:'起点 ＋ 半径（海里）＝一个圆。'
+};
+
+function pdStart(){
+  const R = parseFloat($('pdR').value) || 0;
+  const B = parseFloat($('pdB').value) || 0;
+  return polarPoint(R, B);
+}
+
+/* 从 p 沿方位 ang 射出去，求与图纸边界的交点（保证不无限延伸） */
+function rayEnd(p, angDeg){
+  const a = angDeg * toRad;
+  const dx = Math.sin(a), dy = -Math.cos(a);
+  let t = Infinity;
+  const EPS = 1e-9;
+  if(dx > EPS)  t = Math.min(t, (IMG_W - p.x) / dx);
+  if(dx < -EPS) t = Math.min(t, (0 - p.x) / dx);
+  if(dy > EPS)  t = Math.min(t, (IMG_H - p.y) / dy);
+  if(dy < -EPS) t = Math.min(t, (0 - p.y) / dy);
+  if(!isFinite(t) || t <= 0) return { x:p.x, y:p.y };
+  return { x: p.x + dx*t, y: p.y + dy*t };
+}
+
+function pdSetType(t){
+  ptype = t;
+  document.querySelectorAll('.ptype').forEach(b=>b.classList.toggle('on', b.dataset.ptype===t));
+  const dirRow = $('pdDirRow');
+  const dirLbl = $('pdDirLabel'), lenLbl = $('pdLenLabel'), lenIn = $('pdL');
+  if(t === 'point'){
+    dirRow.style.display = 'none';
+  } else if(t === 'ray'){
+    dirRow.style.display = 'flex';
+    dirLbl.style.display = ''; $('pdA').style.display = ''; $('pdA').nextElementSibling.style.display = '';
+    lenLbl.style.display = 'none'; lenIn.style.display = 'none'; lenIn.nextElementSibling.style.display = 'none';
+  } else {
+    dirRow.style.display = 'flex';
+    dirLbl.style.display = ''; $('pdA').style.display = ''; $('pdA').nextElementSibling.style.display = '';
+    lenLbl.style.display = ''; lenIn.style.display = ''; lenIn.nextElementSibling.style.display = '';
+    lenLbl.textContent = (t === 'circle') ? '半径' : '长度';
+  }
+  $('pdHint').innerHTML = PTYPE_HINT[t] + '<br>起点＝距本船多少海里 ＋ 方位多少度（本船在图心，0 / 0 就是图心）。';
+}
+
+document.querySelectorAll('.ptype').forEach(b=>{
+  b.addEventListener('click', ()=>pdSetType(b.dataset.ptype));
+});
+
+$('pdDraw').addEventListener('click', ()=>{
+  const p1 = pdStart();
+  const ang = parseFloat($('pdA').value);
+  const len = parseFloat($('pdL').value);
+
+  if(ptype === 'point'){
+    pushUndo();
+    points.push({ x:p1.x, y:p1.y, color:S.pointColor, size:S.pointSize });
+    labels.push({ x:p1.x+16, y:p1.y-16, text:S.letter, color:S.labelColor, size:S.labelSize });
+    nextLetter();
+    lastMade = { type:'point', id: points.length-1 };
+    redraw(); save(); toast('已放置 '+S.letter);
+    return;
+  }
+
+  if(ptype === 'circle'){
+    if(isNaN(len) || len <= 0){ toast('请填半径（海里）'); return; }
+    pushUndo();
+    circles.push({ x:p1.x, y:p1.y, r: len*S.pxPerUnit, color:S.color, width:S.width, style:S.style });
+    lastMade = { type:'circle', id: circles.length-1 };
+    redraw(); save(); toast('圆 半径 '+len+' 海里');
+    return;
+  }
+
+  if(isNaN(ang)){ toast('请填方向角度'); return; }
+  let p2;
+  if(ptype === 'ray'){
+    p2 = rayEnd(p1, ang);
+    if(Math.hypot(p2.x-p1.x, p2.y-p1.y) < 1) { toast('这个方向出了图纸，换个角度'); return; }
+  } else {
+    if(isNaN(len) || len <= 0){ toast('请填长度（海里）'); return; }
+    const a = ang * toRad;
+    p2 = { x: p1.x + len*S.pxPerUnit*Math.sin(a),
+           y: p1.y - len*S.pxPerUnit*Math.cos(a) };
+  }
+  pushUndo();
+  lines.push({ x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y,
+               color:S.color, width:S.width, arrow:S.arrow, style:S.style });
+  lastMade = { type:'line', id: lines.length-1 };
+  sel = { type:'line', id: lines.length-1 };
+  syncUI(); redraw(); save();
+  toast((ptype==='ray'?'射线 ':'线段 ') + ang.toFixed(1) + '°');
+});
+
+$('pdAgain').addEventListener('click', ()=>{
+  const el = (ptype === 'point') ? $('pdR') : $('pdA');
+  el.focus();
+  try{ el.select(); }catch(e){}
+  toast('参数留着，改个数再点「画到图上」');
+});
+
+$('pdDel').addEventListener('click', ()=>{
+  if(!lastMade){ toast('还没有刚画的东西'); return; }
+  pushUndo();
+  if(lastMade.type === 'line'     && lines[lastMade.id])   lines.splice(lastMade.id,1);
+  if(lastMade.type === 'circle'   && circles[lastMade.id]) circles.splice(lastMade.id,1);
+  if(lastMade.type === 'point'    && points[lastMade.id])  points.splice(lastMade.id,1);
+  lastMade = null; sel = null; syncUI(); redraw(); save();
+  toast('已删除');
+});
+
+function nextLetter(){
+  if(S.autoLetter && /^[A-Z]$/.test(S.letter)){
+    const c = S.letter.charCodeAt(0);
+    S.letter = String.fromCharCode(c>=90 ? 65 : c+1);
+    $('letterInput').value = S.letter;
+  }
+}
+
+pdSetType('line');
 
 /* ============================================================
  *  屏幕路由（竖屏目录 / 横屏工具）

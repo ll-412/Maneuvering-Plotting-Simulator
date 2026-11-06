@@ -23,7 +23,7 @@ import java.util.Locale;
  * 网页 <-> 安卓 的桥。
  * 独立成顶层类，避免 d8 在处理内部类时崩（该项目用的 d8 8.2.2 有这毛病）。
  */
-class Bridge {
+class Bridge implements Runnable {
 
     private static final String ALBUM = "舰操绘算";
 
@@ -64,6 +64,19 @@ class Bridge {
         } catch (Throwable t) {
             return false;
         }
+    }
+
+    /** 网页调用：退出 App（退出询问里点「保存并退出 / 不保存」之后） */
+    @JavascriptInterface
+    public void exitApp() {
+        if (act == null) return;
+        act.runOnUiThread(this);          // 不写匿名类，否则 d8 会崩
+    }
+
+    /** 切回主线程后真正执行 finish */
+    @Override
+    public void run() {
+        if (act != null) act.finish();
     }
 
     @JavascriptInterface

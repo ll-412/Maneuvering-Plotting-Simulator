@@ -95,24 +95,14 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** 返回键：不在首页就先回首页，在首页才两次退出 */
+    /** 返回键：交给网页决定（子页→回首页；首页→问要不要保存） */
     @Override
     public void onBackPressed() {
         if (web == null) {
             super.onBackPressed();
             return;
         }
-        if (!"home".equals(Bridge.currentScreen)) {
-            web.evaluateJavascript("window.__show && window.__show('home')", null);
-            return;
-        }
-        long now = System.currentTimeMillis();
-        if (now - lastBack < 2000) {
-            finish();
-        } else {
-            lastBack = now;
-            Toast.makeText(this, "再按一次退出", Toast.LENGTH_SHORT).show();
-        }
+        web.evaluateJavascript("window.__onBack && window.__onBack()", null);
     }
 
     @Override

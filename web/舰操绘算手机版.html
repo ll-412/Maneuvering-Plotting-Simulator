@@ -86,6 +86,8 @@
     -webkit-overflow-scrolling:touch; touch-action:pan-y;
     padding:8px; gap:8px; flex-direction:column;
   }
+  /* flex 列里的子卡片默认会被压扁（折叠卡带 overflow:hidden 时直接压到 0），禁止压缩 */
+  .tabbody > *{flex:0 0 auto;}
   .tabbody.on{display:flex;}
 
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
@@ -143,6 +145,17 @@
   .chk{display:flex; align-items:center; gap:9px; font-size:14.5px; padding:5px 0;}
   .chk input{width:22px; height:22px; accent-color:var(--acc);}
 
+  /* 可折叠卡片 */
+  .fold{padding:0; overflow:hidden;}
+  .foldhead{
+    display:flex; align-items:center; gap:10px; padding:15px 16px; cursor:pointer;
+    font-size:13px; font-weight:800; color:var(--pg-p); letter-spacing:1.2px; user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .foldhead .ar{margin-left:auto; font-size:17px; color:var(--pg-foot); transition:.2s;}
+  .fold.open .foldhead .ar{transform:rotate(90deg);}
+  .foldbody{display:none; padding:0 16px 16px;}
+  .fold.open .foldbody{display:block;}
   .sub{font-size:12.5px;font-weight:800;color:#1e88e5;letter-spacing:1px;margin:14px 0 7px;padding-left:2px;}
   .sub:first-of-type{margin-top:4px;}
   .hint{font-size:12.5px; color:var(--muted); line-height:1.6;}
@@ -571,8 +584,9 @@
       </div>
 
       <!-- 点 -->
-      <div class="card">
-        <h3>📍 点</h3>
+      <div class="card fold open" id="foldPt">
+        <div class="foldhead" data-fold="foldPt"><span>📍 点</span><span class="ar">›</span></div>
+        <div class="foldbody">
         <div class="row">
           <label>名称</label><input id="ptName" placeholder="A" maxlength="8">
           <label>时刻</label><input id="ptTime" placeholder="1300" maxlength="8">
@@ -586,11 +600,13 @@
           <button class="tb" id="ptUpdate">更新选中点</button>
         </div>
         <div class="hint">方位＝从本船（图心）看这个点的角度，正北 0°，顺时针。<br>距离＝这个点离本船多少海里。</div>
+        </div>
       </div>
 
       <!-- 线段 -->
-      <div class="card">
-        <h3>📏 线段（两个点连起来）</h3>
+      <div class="card fold" id="foldLn">
+        <div class="foldhead" data-fold="foldLn"><span>📏 线段（两个点连起来）</span><span class="ar">›</span></div>
+        <div class="foldbody">
         <div class="sub">起点</div>
         <div class="row">
           <label>名称</label><input id="lnAn" placeholder="A" maxlength="8">
@@ -609,8 +625,16 @@
           <label>方位</label><input id="lnBb" type="number" step="0.5" inputmode="decimal"><span class="un">°</span>
           <label>距离</label><input id="lnBr" type="number" step="0.1" inputmode="decimal"><span class="un">海里</span>
         </div>
+        <label class="chk" style="margin-bottom:6px;">
+          <input type="checkbox" id="lnRay"> 同时生成一条射线
+        </label>
+        <div class="hint" style="margin-top:0;margin-bottom:10px;">
+          勾上之后，除了这条线段，再画一条<b>从起点往两头一直延伸到图纸边缘</b>的射线，
+          名字叫「起点名+1」（A → A1）。
+        </div>
         <button class="tb go" id="lnDraw" style="width:100%;">画这条线</button>
         <div class="hint">两个点会同时在图上带名字和时刻，线从起点连到终点。</div>
+        </div>
       </div>
 
       <!-- 一键连接 -->
@@ -631,8 +655,9 @@
       </div>
 
       <!-- 圆 -->
-      <div class="card">
-        <h3>◯ 圆</h3>
+      <div class="card fold" id="foldCc">
+        <div class="foldhead" data-fold="foldCc"><span>◯ 圆</span><span class="ar">›</span></div>
+        <div class="foldbody">
         <div class="row">
           <label>名称</label><input id="ccName" placeholder="圆1" maxlength="8">
           <label>时刻</label><input id="ccT" placeholder="1300" maxlength="8">
@@ -645,6 +670,7 @@
           <label>半径</label><input id="ccRad" type="number" step="0.1" inputmode="decimal" placeholder="2"><span class="un">海里</span>
         </div>
         <button class="tb go" id="ccDraw" style="width:100%;">画圆</button>
+        </div>
       </div>
 
       <!-- 图纸范围 -->
@@ -1068,6 +1094,10 @@ function drawLineW(l,k){
   const s = (9 + l.width*2.2)/k;
   if(l.arrow==='start'||l.arrow==='both') drawArrowHead(c.x1,c.y1,ang+Math.PI,s,l.color);
   if(l.arrow==='end'||l.arrow==='both')   drawArrowHead(c.x2,c.y2,ang,s,l.color);
+  if(l.name){
+    const t = 0.72;
+    drawTag(c.x1 + (c.x2-c.x1)*t, c.y1 + (c.y2-c.y1)*t, l.name, '', l.color, k);
+  }
 }
 function drawCircleW(c,k){
   ctx.strokeStyle=c.color; ctx.lineWidth=c.width/k; ctx.lineCap='butt';
@@ -2332,11 +2362,31 @@ function mkPoint(B, R, name, t){
            name: (name || '').trim(), t: (t || '').trim() };
 }
 
-/* 线的两端：绑定了点就实时跟点走 */
+/* 一条直线与图纸圆（BOARD_R）的两个交点 */
+function extendToBoard(x1, y1, x2, y2){
+  const dx = x2 - x1, dy = y2 - y1;
+  const L = Math.hypot(dx, dy);
+  if(L < 1e-6) return { x1, y1, x2, y2 };
+  const ux = dx / L, uy = dy / L;
+  const px = x1 - BOARD_CX, py = y1 - BOARD_CY;
+  const b = px * ux + py * uy;
+  const cc = px * px + py * py - BOARD_R * BOARD_R;
+  const disc = b * b - cc;
+  if(disc <= 0) return { x1, y1, x2, y2 };
+  const sq = Math.sqrt(disc);
+  const tf = -b + sq, tb = -b - sq;
+  return {
+    x1: BOARD_CX + px + ux * tb, y1: BOARD_CY + py + uy * tb,
+    x2: BOARD_CX + px + ux * tf, y2: BOARD_CY + py + uy * tf
+  };
+}
+
+/* 线的两端：绑定了点就实时跟点走；isRay 时延伸到图纸边缘 */
 function lineXY(l){
   let x1 = l.x1, y1 = l.y1, x2 = l.x2, y2 = l.y2;
   if(l.a){ const p = points.find(q => q.id === l.a); if(p){ x1 = p.x; y1 = p.y; } }
   if(l.b){ const p = points.find(q => q.id === l.b); if(p){ x2 = p.x; y2 = p.y; } }
+  if(l.isRay) return extendToBoard(x1, y1, x2, y2);
   return { x1, y1, x2, y2 };
 }
 
@@ -2396,9 +2446,20 @@ function drawLineFromPanel(){
   lines.push({ id: uid(), a: pa.id, b: pb.id,
                x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y,
                color: S.color, width: S.width, arrow: S.arrow, style: S.style });
-  sel = { type:'line', id: lines.length - 1 };
+  const lineIdx = lines.length - 1;
+
+  /* 勾了「同时生成射线」：再加一条两端顶到图纸边缘的线 */
+  let rayName = '';
+  if($('lnRay') && $('lnRay').checked){
+    rayName = na + '1';
+    lines.push({ id: uid(), a: pa.id, b: pb.id, isRay: true, name: rayName,
+                 x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y,
+                 color: S.color, width: S.width, arrow: 'none', style: 'dashed' });
+  }
+  sel = { type:'line', id: lineIdx };
   refreshPts(); syncUI(); redraw(); save();
-  toast('已连：' + na + ' → ' + nb);
+  toast(rayName ? ('已连：' + na + ' → ' + nb + '，另画射线 ' + rayName)
+                : ('已连：' + na + ' → ' + nb));
 }
 
 /* ---------------- 一键连接 ---------------- */
@@ -2522,6 +2583,13 @@ $('ccDraw').addEventListener('click', drawCircleFromPanel);
       o.t = v;
     }
     save();
+  });
+});
+
+document.querySelectorAll('[data-fold]').forEach(h=>{
+  h.addEventListener('click', ()=>{
+    const box = $(h.dataset.fold);
+    if(box) box.classList.toggle('open');
   });
 });
 

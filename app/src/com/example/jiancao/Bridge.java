@@ -1,6 +1,8 @@
 package com.example.jiancao;
 
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
@@ -9,15 +11,21 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
 
 import java.io.File;
+import java.nio.charset.Charset;
+import java.security.MessageDigest;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * 网页 <-> 安卓 的桥。
@@ -26,6 +34,9 @@ import java.util.Locale;
 class Bridge implements Runnable {
 
     private static final String ALBUM = "舰操绘算";
+
+    /* 授权码用的密钥。改了它就等于让所有已发出的授权码作废。 */
+    private static final String LIC_KEY = "JC-Plot-2026-1155-Lic";
 
     /** 网页当前在哪一屏，给返回键判断用 */
     static String currentScreen = "home";
@@ -67,6 +78,71 @@ class Bridge implements Runnable {
     }
 
     /** 网页调用：退出 App（退出询问里点「保存并退出 / 不保存」之后） */
+    /* ---------- 授权码（一人一码） ---------- */
+
+    /** 本机机器码：ANDROID_ID 的摘要，形如 K7X2-9M4P */
+    @JavascriptInterface
+    public String deviceCode() {
+        String id = null;
+        try {
+            id = Settings.Secure.getString(ctx.getContentResolver(), Settings.Secure.ANDROID_ID);
+        } catch (Throwable ignored) {
+        }
+        if (id == null || id.trim().length() == 0) {
+            try {
+                id = Build.FINGERPRINT + "|" + Build.MODEL + "|" + Build.MANUFACTURER;
+            } catch (Throwable t) {
+                id = "unknown-device";
+            }
+        }
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] d = md.digest((id + "|jcplot").getBytes(Charset.forName("UTF-8")));
+            String h = hexOf(d).substring(0, 8);
+            return h.substring(0, 4) + "-" + h.substring(4, 8);
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    /** 网页传入授权码，返回是否匹配本机 */
+    @JavascriptInterface
+    public boolean checkLicense(String input) {
+        String want = licenseFor(deviceCode());
+        if (want.length() == 0) return false;
+        String got = (input == null) ? "" : input.toUpperCase(Locale.US).replaceAll("[^A-Z0-9]", "");
+        return want.replace("-", "").equals(got);
+    }
+
+    private static String licenseFor(String device) {
+        try {
+            String msg = (device == null) ? "" : device.toUpperCase(Locale.US).replaceAll("[^A-Z0-9]", "");
+            if (msg.length() < 6) return "";
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(LIC_KEY.getBytes(Charset.forName("UTF-8")), "HmacSHA256"));
+            String h = hexOf(mac.doFinal(msg.getBytes(Charset.forName("UTF-8"))));
+            return h.substring(0, 4) + "-" + h.substring(4, 8);
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    private static String hexOf(byte[] b) {
+        StringBuilder sb = new StringBuilder();
+        for (byte x : b) {
+            sb.append(Character.forDigit((x >> 4) & 0xF, 16));
+            sb.append(Character.forDigit(x & 0xF, 16));
+        }
+        return sb.toString().toUpperCase(Locale.US);
+    }
+
+    /** 网页调用：把文字复制到剪贴板（方便把机器码发给主人） */
+    @JavascriptInterface
+    public void copyText(String s) {
+        if (act == null) return;
+        act.runOnUiThread(new UiCopy(act, s));
+    }
+
     @JavascriptInterface
     public void exitApp() {
         if (act == null) return;
@@ -137,6 +213,31 @@ class Bridge implements Runnable {
             return true;
         } catch (Throwable t) {
             return false;
+        }
+    }
+}
+
+/**
+ * 把一段文字放进剪贴板。
+ * 必须是顶层类：匿名类/内部类会让 d8 崩。
+ */
+class UiCopy implements Runnable {
+
+    private final Activity act;
+    private final String text;
+
+    UiCopy(Activity a, String t) {
+        this.act = a;
+        this.text = (t == null) ? "" : t;
+    }
+
+    @Override
+    public void run() {
+        try {
+            ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm == null) return;
+            cm.setPrimaryClip(ClipData.newPlainText("jiancao", text));
+        } catch (Throwable ignored) {
         }
     }
 }

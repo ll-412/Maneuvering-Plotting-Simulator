@@ -378,6 +378,20 @@
     background:#1e88e5; color:#fff; font-size:17px; font-weight:800; letter-spacing:2px;
   }
   #gate .gerr{min-height:22px; margin-top:12px; font-size:13px; color:#ff7a7a; font-weight:700;}
+  #gate .gdevbox{
+    background:#0f1926; border:1.5px solid #23364d; border-radius:14px;
+    padding:14px; margin-bottom:16px;
+  }
+  #gate .glab{font-size:11.5px; color:#5f7791; letter-spacing:2px; margin-bottom:8px;}
+  #gate .gcode{
+    font-size:27px; font-weight:800; letter-spacing:4px; color:#7fd3ff;
+    font-family:ui-monospace,Consolas,monospace; user-select:text; -webkit-user-select:text;
+  }
+  #gate .gcopy{
+    margin-top:11px; font-size:12.5px; color:#9dc2e2; background:#16283a;
+    border:1px solid #2a4159; border-radius:9px; padding:8px 15px; letter-spacing:1px;
+  }
+  #gate .gcopy:active{background:#1d3346;}
   #gate .gfoot{margin-top:26px; font-size:11.5px; color:#4a5c72; line-height:1.8;}
 
   /* ---------- 退出询问 ---------- */
@@ -790,11 +804,18 @@
 <div id="gate" hidden>
   <div class="gbox">
     <div class="gtitle">舰操绘算</div>
-    <div class="gsub">INPUT INVITE CODE</div>
-    <input id="gateInput" type="text" placeholder="JC-XXXX-XXXX" autocomplete="off" spellcheck="false">
+    <div class="gsub">DEVICE LICENSE</div>
+
+    <div class="gdevbox">
+      <div class="glab">本 机 机 器 码</div>
+      <div class="gcode" id="gateDev">— — — —</div>
+      <button class="gcopy" id="gateCopy">复制发给主人</button>
+    </div>
+
+    <input id="gateInput" type="text" placeholder="授权码 XXXX-XXXX" autocomplete="off" spellcheck="false">
     <button class="gbtn" id="gateGo">进 入</button>
     <div class="gerr" id="gateErr"></div>
-    <div class="gfoot">邀请码由主人一对一发放<br>遇到问题找主人要</div>
+    <div class="gfoot">把上面的机器码发给主人<br>主人回你一个授权码，填进来永久有效</div>
   </div>
 </div>
 
@@ -2946,6 +2967,14 @@ window.__gateCheck = function(v){
   const raw = String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
   return raw && INVITE_HASH.indexOf(fnv1a(raw)) >= 0;
 };
+function deviceCode(){
+  try{
+    if(window.Android && typeof window.Android.deviceCode === 'function'){
+      return window.Android.deviceCode() || '';
+    }
+  }catch(e){}
+  return '';
+}
 (function initGate(){
   let unlocked = false;
   try{ unlocked = localStorage.getItem('jiancao_unlock') === '1'; }catch(e){}
@@ -2953,14 +2982,35 @@ window.__gateCheck = function(v){
   const g = $('gate');
   g.hidden = false;
   const inp = $('gateInput'), err = $('gateErr');
+  const dev = deviceCode();
+  const devEl = $('gateDev'), copyEl = $('gateCopy');
+
+  if(dev){
+    devEl.textContent = dev;
+    copyEl.addEventListener('click', ()=>{
+      try{ window.Android.copyText(dev); toast('已复制'); }
+      catch(e){ toast('复制不了，手抄一下吧'); }
+    });
+  } else {
+    devEl.textContent = '网页版';
+    copyEl.style.display = 'none';
+    inp.placeholder = '邀请码 JC-XXXX-XXXX';
+  }
+
   function go(){
-    if(!inp.value.trim()){ err.textContent = '先输入邀请码'; return; }
-    if(window.__gateCheck(inp.value)){
+    const v = inp.value.trim();
+    if(!v){ err.textContent = dev ? '先填授权码' : '先填邀请码'; return; }
+    let ok = false;
+    if(dev){
+      try{ ok = window.Android.checkLicense(v); }catch(e){}
+    }
+    if(!ok && window.__gateCheck(v)) ok = true;      // 备用：20 个固定邀请码
+    if(ok){
       try{ localStorage.setItem('jiancao_unlock','1'); }catch(e){}
       g.hidden = true;
       toast('已解锁');
     } else {
-      err.textContent = '这个码不对，检查一下大小写和横杠';
+      err.textContent = dev ? '授权码不对（它是跟这台手机绑定的）' : '邀请码不对';
       try{ inp.select(); }catch(e){}
     }
   }

@@ -701,54 +701,17 @@
 
       <!-- 样式 -->
       <div class="card">
-        <h3>🎨 颜色</h3>
+        <h3>🎨 颜色 / 粗细</h3>
         <div class="wheelbox" id="wheelBox">
           <canvas id="colorWheel" width="196" height="196"></canvas>
           <div class="wheelcur" id="wheelCur"></div>
         </div>
         <div class="sw" id="swAll"></div>
-        <div class="hint" style="margin-top:7px;">点色环任意位置取色，或点下面七个常用色。线、点、文字一起变。</div>
-      </div>
-
-      <div class="card">
-        <h3>粗细</h3>
+        <div class="sub" style="margin-top:14px;">粗细</div>
         <input type="range" id="widthRange" min="1" max="10" step="1" class="rng">
         <div class="stat" id="widthStat">线 3 · 点 7</div>
-        <div class="hint">管线段、圆、点的大小。</div>
-      </div>
-
-      <div class="card">
-        <h3>线型 / 箭头</h3>
-        <div class="row">
-          <label>线型</label>
-          <select id="lineStyle">
-            <option value="solid">实线</option>
-            <option value="dashed">虚线</option>
-          </select>
-          <label>箭头</label>
-          <select id="lineArrow">
-            <option value="none">无</option>
-            <option value="end" selected>终点</option>
-            <option value="start">起点</option>
-            <option value="both">两端</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>文字</h3>
-        <div class="row">
-          <label>内容</label><input type="text" id="letterInput" value="A" maxlength="10">
-        </div>
-        <div class="row">
-          <label>字号</label>
-          <select id="labelSize">
-            <option value="16">小</option>
-            <option value="20" selected>中</option>
-            <option value="26">大</option>
-            <option value="34">特大</option>
-          </select>
-          <label class="chk" style="flex:1 1 auto;"><input type="checkbox" id="autoLetter" checked> 自动顺延</label>
+        <div class="hint" style="margin-top:7px;">
+          点色环或常用色取色，线、点、文字一起变；滑条管线段、圆、点的大小。
         </div>
       </div>
 
@@ -1701,7 +1664,6 @@ function onUp(sx, sy, singleInfo){
     if(S.autoLetter && /^[A-Z]$/.test(S.letter)){
       const c = S.letter.charCodeAt(0);
       S.letter = String.fromCharCode(c>=90 ? 65 : c+1);
-      $('letterInput').value = S.letter;
     }
     redraw(); save();
     return;
@@ -1866,13 +1828,8 @@ function syncUI(){
   mark('swAll', S.color);
   $('widthRange').value   = String(S.width);
   $('widthStat').innerHTML= '线 <b>'+S.width+'</b> · 点 <b>'+(2*S.width+1)+'</b>';
-  $('lineStyle').value   = S.style || 'solid';
-  $('lineArrow').value   = S.arrow;
-  $('labelSize').value   = String(S.labelSize);
-  $('autoLetter').checked = S.autoLetter;
   $('showPerp').checked   = S.showPerp;
   $('perpTol').value      = String(S.perpTol);
-  $('letterInput').value  = S.letter;
   document.querySelectorAll('.scalebtn').forEach(b=>b.classList.toggle('on', parseInt(b.dataset.nm,10)===S.maxNM));
   $('hudScale').textContent = '满圈 ' + S.maxNM + ' 海里';
   $('scaleStat').innerHTML = '满圈 <b>'+S.maxNM+'</b> 海里 · 1 小圈 = <b>'+(S.maxNM/20).toFixed(2)+'</b> 海里';
@@ -2027,28 +1984,6 @@ $('widthRange').addEventListener('input', e=>{
   $('widthStat').innerHTML = '线 <b>'+S.width+'</b> · 点 <b>'+S.pointSize+'</b>';
   redraw(); save();
 });
-$('lineStyle').addEventListener('change', e=>{
-  S.style = e.target.value;
-  if(sel && sel.type==='line'){ pushUndo(); lines[sel.id].style = S.style; }
-  else if(sel && sel.type==='circle'){ pushUndo(); circles[sel.id].style = S.style; }
-  redraw(); save();
-});
-$('lineArrow').addEventListener('change', e=>{
-  S.arrow = e.target.value;
-  if(sel && sel.type==='line'){ pushUndo(); lines[sel.id].arrow = S.arrow; }
-  redraw(); save();
-});
-$('labelSize').addEventListener('change', e=>{
-  S.labelSize = parseInt(e.target.value,10);
-  if(sel && sel.type==='label'){ pushUndo(); labels[sel.id].size = S.labelSize; }
-  redraw(); save();
-});
-$('letterInput').addEventListener('input', e=>{
-  const v = e.target.value.toUpperCase().replace(/[^\u4e00-\u9fa5A-Za-z0-9:.,\/()+\- °′'%#@·_]/g,'').slice(0,10);
-  e.target.value = v; S.letter = v || 'A';
-  if(sel && sel.type==='label' && v){ pushUndo(); labels[sel.id].text = v; redraw(); save(); }
-});
-$('autoLetter').addEventListener('change', e=>{ S.autoLetter = e.target.checked; save(); });
 $('showPerp').addEventListener('change', e=>{ S.showPerp = e.target.checked; redraw(); save(); });
 $('perpTol').addEventListener('change', e=>{ S.perpTol = parseInt(e.target.value,10); redraw(); save(); });
 
@@ -2397,8 +2332,6 @@ function nextLetter(){
   if(S.autoLetter && /^[A-Z]$/.test(S.letter)){
     const c = S.letter.charCodeAt(0);
     S.letter = String.fromCharCode(c >= 90 ? 65 : c + 1);
-    const el = $('letterInput');
-    if(el) el.value = S.letter;
   }
 }
 
@@ -2445,7 +2378,7 @@ function drawLineFromPanel(){
   points.push(pa, pb);
   lines.push({ id: uid(), a: pa.id, b: pb.id,
                x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y,
-               color: S.color, width: S.width, arrow: S.arrow, style: S.style });
+               color: S.color, width: S.width, arrow: 'end', style: 'solid' });
   const lineIdx = lines.length - 1;
 
   /* 勾了「同时生成射线」：再加一条两端顶到图纸边缘的线 */
